@@ -128,7 +128,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	*/
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('javafx-builder-class-generator.generateBuilderClass', generateBuilderClass)
+		vscode.commands.registerCommand('javafx-builder-class-generator.generateBuilderClass', (document: vscode.TextDocument, range: vscode.Range) =>
+			generateBuilderClass(document, range)
+		)
 	);
 
 }

@@ -33,7 +33,7 @@ interface MethodInfo {
 
 let cancelTokenSource: vscode.CancellationTokenSource | undefined;
 
-export async function generateBuilderClass() {
+export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range) {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor found.');
@@ -45,10 +45,14 @@ export async function generateBuilderClass() {
         return;
     }
 
-    const cursorPosition = editor.selection.active;
-    const cursorLine = cursorPosition.line;
-    const line = editor.document.lineAt(cursorLine).text;
+    let cursorLine = range.start.line;
+    if (document === undefined) {
+        document = editor.document;
+        const cursorPosition = editor.selection.active;
+        cursorLine = cursorPosition.line;
+    }
 
+    const line = document.lineAt(cursorLine).text;
     const match = line.match(/^(\s*)(.*)new\s+([\w.]+)\s*\((.*?)\)/);
     if (!match) {
         return;
@@ -64,9 +68,8 @@ export async function generateBuilderClass() {
     const targetClassNameOnly = classNameMatch ? classNameMatch[1] : targetClassFullName;
 
     const classStartAt = line.indexOf(targetClassNameOnly + "(");
-    const classPosition = new vscode.Position(cursorPosition.line, classStartAt + 1);
+    const classPosition = new vscode.Position(cursorLine, classStartAt + 1);
 
-    const document = editor.document;
     const textDocument: TextDocumentIdentifier = TextDocumentIdentifier.create(document.uri.toString());
     const params: TextDocumentPositionParams = {
         textDocument: textDocument,
@@ -226,9 +229,9 @@ export async function generateBuilderClass() {
 
         // Replace 'new TargetClassName' with 'TargetClassNameBuilder.create().build()'
         const range = new vscode.Range(
-            cursorPosition.line,
+            cursorLine,
             startPos,
-            cursorPosition.line,
+            cursorLine,
             startPos + matchLength
         );
         var indent = ' '.repeat(prevText.length + 4);
