@@ -1,9 +1,6 @@
 import * as vscode from 'vscode';
-import { BuilderClassCodeLensProvider } from './codelens/builderClassCodeLens';
 import { generateBuilderClass } from './command/generateBuilderClass';
-import path from 'path';
 import { checkModule, constructorMap, deleteModule } from './util';
-import fs from 'fs';
 import { BuilderClassCodeActionProvider } from './codeactions/builderClass';
 import { diagSceneClass } from './diagnostics/diagSceneClass';
 
@@ -61,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		files.forEach(async uri => {
 			const document = await vscode.workspace.openTextDocument(vscode.Uri.file(uri.fsPath));
 			if (uri.path.endsWith('module-info.java')) {
-				checkModule(document);
+				//			checkModule(document);
 			}
 			else {
 				diagSceneClass(document);
@@ -79,7 +76,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	javaWatcher.onDidChange(async uri => {
 		const document = await vscode.workspace.openTextDocument(vscode.Uri.file(uri.fsPath));
 		if (uri.path.endsWith('module-info.java')) {
-			checkModule(document);
+			//			checkModule(document);
 		}
 		else {
 			diagSceneClass(document);
@@ -88,7 +85,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	javaWatcher.onDidCreate(async uri => {
 		const document = await vscode.workspace.openTextDocument(vscode.Uri.file(uri.fsPath));
 		if (uri.path.endsWith('module-info.java')) {
-			checkModule(document);
+			//			checkModule(document);
 		}
 		else {
 			diagSceneClass(document);
@@ -108,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	vscode.workspace.onDidChangeTextDocument(event => {
 		const document = event.document;
 		if (document.fileName === 'module-info.java') {
-			checkModule(document);
+			//			checkModule(document);
 		}
 		else if (document.languageId === 'java') {
 			diagSceneClass(document);

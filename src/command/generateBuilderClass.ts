@@ -406,19 +406,24 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
             })
             .join('\n\n');
 
+
         let extraImport = "";
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(mainClass.filePath));
-        if (workspaceFolder) {
-            const moduleNames = moduleMaps[workspaceFolder.uri.fsPath];
-            if (moduleNames) {
-                if (moduleNames.includes('javafx.media')) {
-                    extraImport += `import javafx.scene.media.*;`;
-                }
-                if (moduleNames.includes('javafx.web')) {
-                    extraImport += `import javafx.scene.web.*;`;
-                }
-            }
-        }
+        extraImport += `import javafx.scene.media.*;\n`;
+        extraImport += `import javafx.scene.web.*;\n`;
+
+        // NOTICE: module check is not needed because unused import is always removed
+        // const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(mainClass.filePath));
+        // const moduleNames = moduleMaps[workspaceFolder.uri.fsPath];
+        // if (moduleNames) {
+        //     if (moduleNames.includes('javafx.media')) {
+        //         extraImport += `import javafx.scene.media.*;`;
+        //     }
+        //     if (moduleNames.includes('javafx.web')) {
+        //         extraImport += `import javafx.scene.web.*;`;
+        //     }
+        // }
+        // }
+        // }
 
         let buildMethod = `    public ${targetClassName} build() { return in; }`;
         if (constructorInfo) {
