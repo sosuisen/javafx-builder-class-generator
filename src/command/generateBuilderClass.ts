@@ -128,9 +128,12 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
     const methodMap = new Map<string, MethodInfo>();
     const constructorMap = new Map<string, MethodInfo>();
 
+    const classesInHierarchy = new Set<string>();
+
     // Process class hierarchy using queue
     while (classQueue.length > 0) {
         const currentItem = classQueue.shift()!;
+        classesInHierarchy.add(currentItem.name);
         const classKey = `${currentItem.uri}#${currentItem.name}`;
 
         // Skip already processed classes
@@ -261,7 +264,7 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
             edit.replace(editor.document.uri, range, `${prevSpaces}${prevText}${builderClassName}.${typeParams.length > 0 ? `<${typeParams.join(', ')}>` : ''}create(${originalArgs})\n${prevSpaces}${indent}.build()`);
             await vscode.workspace.applyEdit(edit);
         }
-        await createBuilderClassFile(methodInfoList, constructorInfoList, mainClass, targetClassNameOnly);
+        await createBuilderClassFile(methodInfoList, constructorInfoList, mainClass, targetClassNameOnly, classesInHierarchy);
     } else {
         console.log('Main class not found.');
     }
@@ -303,7 +306,7 @@ function processGenericTypes(text: string): string[] {
     return result;
 }
 
-async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorInfoList: MethodInfo[], mainClass: { packageName: string, filePath: string }, targetClassName: string) {
+async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorInfoList: MethodInfo[], mainClass: { packageName: string, filePath: string }, targetClassName: string, classesInHierarchy: Set<string>) {
     const mainClassPath = mainClass.filePath;
     const mainClassDir = mainClassPath.substring(0, mainClassPath.lastIndexOf(path.sep));
 
@@ -443,8 +446,8 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                     }
                 }
                 else {
-                    const typeParamsStr = methodTypeParams.length > 0 ? `<${methodTypeParams.join(', ')}>` : '';
-                    return `    public ${typeParamsStr} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
+                    // const typeParamsStr = methodTypeParams.length > 0 ? `<${methodTypeParams.join(', ')}>` : '';
+                    return `    public ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');
@@ -548,6 +551,8 @@ import java.io.*;
 import javafx.scene.control.Alert.*;
 import javafx.scene.control.ButtonBar.*;
 
+${classesInHierarchy.has("XYChart") ? `import javafx.scene.chart.XYChart.*;` : ''}
+${classesInHierarchy.has("PieChart") ? `import javafx.scene.chart.PieChart.*;` : ''}
 
 public class ${targetClassName}Builder${constructorTypeParameter} {
     private ${targetClassName}${constructorTypeParameter} in;
