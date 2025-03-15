@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { generateBuilderClass, generateAllBuilderClasses } from './command/generateBuilderClass';
-import { checkModule, constructorMap, deleteModule } from './util';
+import { checkModule, deleteModule, extraConstructorMap, extraMethodMap } from './util';
 import { BuilderClassCodeActionProvider } from './codeactions/builderClass';
 import { diagSceneClass } from './diagnostics/diagSceneClass';
 
@@ -19,9 +19,25 @@ export async function activate(context: vscode.ExtensionContext) {
 		return;
 	}
 
-	const txtResourceUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'constructor.txt');
+	const methodTxtResourceUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'method.txt');
 	try {
-		const data = await vscode.workspace.fs.readFile(txtResourceUri);
+		const methodData = await vscode.workspace.fs.readFile(methodTxtResourceUri);
+		const methodContent = new TextDecoder().decode(methodData);
+		methodContent.split('\n').forEach(line => {
+			if (line.includes(',')) {
+				let [methodName, ...typeParam] = line.split(',');
+				methodName = methodName.trim();
+				if (methodName) {
+					extraMethodMap[methodName] = typeParam.join(',').trim();
+				}
+			}
+		});
+	} catch (error) {
+		console.error('Error reading method.txt:', error);
+	}
+	const constructorTxtResourceUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'constructor.txt');
+	try {
+		const data = await vscode.workspace.fs.readFile(constructorTxtResourceUri);
 		const content = new TextDecoder().decode(data);
 		content.split('\n').forEach(line => {
 			if (line.includes(':')) {
@@ -35,14 +51,14 @@ export async function activate(context: vscode.ExtensionContext) {
 						type = type.trim();
 						param = param.trim();
 						if (type && param) {
-							if (!constructorMap[className]) {
-								constructorMap[className] = {};
+							if (!extraConstructorMap[className]) {
+								extraConstructorMap[className] = {};
 							}
-							if (!constructorMap[className][args]) {
-								constructorMap[className][args] = [{ type, param }];
+							if (!extraConstructorMap[className][args]) {
+								extraConstructorMap[className][args] = [{ type, param }];
 							}
 							else {
-								constructorMap[className][args].push({ type, param });
+								extraConstructorMap[className][args].push({ type, param });
 							}
 						}
 					});

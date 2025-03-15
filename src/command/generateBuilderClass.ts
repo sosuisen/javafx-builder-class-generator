@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import { TextDocumentIdentifier, Position, TextDocumentPositionParams } from 'vscode-languageclient';
 import { Range, SymbolKind } from "vscode-languageclient";
 import path from 'path';
-import { findMainClass, moduleMaps, constructorMap } from '../util';
+import { findMainClass, moduleMaps, extraConstructorMap, extraMethodMap } from '../util';
 import { diagnosticCollection, diagSceneClass } from '../diagnostics/diagSceneClass';
 
 enum TypeHierarchyDirection {
@@ -315,7 +315,7 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
     const builderFilePath = `${builderDirPath}/${targetClassName}Builder.java`;
 
     try {
-        const constructorInfo = constructorMap[targetClassName];
+        const constructorInfo = extraConstructorMap[targetClassName];
         let extraBuilderMethod = "";
         const fieldMap: { [key: string]: boolean } = {};
         const methodMap: { [key: string]: boolean } = {};
@@ -447,7 +447,7 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                 }
                 else {
                     // const typeParamsStr = methodTypeParams.length > 0 ? `<${methodTypeParams.join(', ')}>` : '';
-                    return `    public ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
+                    return `    public ${extraMethodMap[info.methodName] || ''} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');
