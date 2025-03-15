@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { generateBuilderClass } from './command/generateBuilderClass';
+import { generateBuilderClass, generateAllBuilderClasses } from './command/generateBuilderClass';
 import { checkModule, constructorMap, deleteModule } from './util';
 import { BuilderClassCodeActionProvider } from './codeactions/builderClass';
 import { diagSceneClass } from './diagnostics/diagSceneClass';
@@ -128,6 +128,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('javafx-builder-class-generator.generateBuilderClass', (document: vscode.TextDocument, range: vscode.Range) =>
 			generateBuilderClass(document, range)
 		)
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('javafx-builder-class-generator.generateAllBuilderClasses', () => {
+			const editor = vscode.window.activeTextEditor;
+			if (editor) {
+				generateAllBuilderClasses(editor.document);
+			}
+		})
 	);
 
 }

@@ -4,6 +4,7 @@ import { TextDocumentIdentifier, Position, TextDocumentPositionParams } from 'vs
 import { Range, SymbolKind } from "vscode-languageclient";
 import path from 'path';
 import { findMainClass, moduleMaps, constructorMap } from '../util';
+import { diagnosticCollection, diagSceneClass } from '../diagnostics/diagSceneClass';
 
 enum TypeHierarchyDirection {
     children,
@@ -33,7 +34,22 @@ interface MethodInfo {
 
 let cancelTokenSource: vscode.CancellationTokenSource | undefined;
 
-export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range) {
+export async function generateAllBuilderClasses(document: vscode.TextDocument) {
+    const diagnostics = diagnosticCollection.get(document.uri);
+    if (!diagnostics || diagnostics.length === 0) {
+        vscode.window.showInformationMessage('No builder classes available to generate.');
+        return;
+    }
+
+    for (const diagnostic of diagnostics) {
+        const range = diagnostic.range;
+        await generateBuilderClass(document, range, false);
+    }
+
+    vscode.window.showInformationMessage(`Generated ${diagnostics.length} builder classes.`);
+}
+
+export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range, replaceConstructor: boolean = true) {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor found.');
@@ -53,7 +69,7 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
     }
 
     const line = document.lineAt(cursorLine).text;
-    const match = line.match(/^(\s*)(.*)new\s+([\w.]+)\s*\((.*?)\)/);
+    const match = line.match(/^(\s*)(.*)new\s+([\w.]+)(?:<([\w\s,]+)>)?\s*\(((?:\([^()]*\)|[^()])*)\)/);
     if (!match) {
         return;
     }
@@ -62,12 +78,18 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
     const prevSpaces = match[1];
     const prevText = match[2];
     const targetClassFullName = match[3];
-    const originalArgs = match[4];
+    const matchedTypeParams = match[4] || '';
+    const originalArgs = match[5];
 
     const classNameMatch = targetClassFullName.match(/[\w.]+?\.(\w+?)/);
     const targetClassNameOnly = classNameMatch ? classNameMatch[1] : targetClassFullName;
+    const typeParams = matchedTypeParams ? matchedTypeParams.split(',').map(t => t.trim()) : [];
 
-    const classStartAt = line.indexOf(targetClassNameOnly + "(");
+    // Find the position after 'new' keyword
+    const newPattern = /new\s+/;
+    const newMatch = line.match(newPattern);
+    const classStartAt = newMatch ? newMatch.index! + newMatch[0].length : line.indexOf(targetClassNameOnly);
+
     const classPosition = new vscode.Position(cursorLine, classStartAt + 1);
 
     const textDocument: TextDocumentIdentifier = TextDocumentIdentifier.create(document.uri.toString());
@@ -228,15 +250,17 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
         }
 
         // Replace 'new TargetClassName' with 'TargetClassNameBuilder.create().build()'
-        const range = new vscode.Range(
-            cursorLine,
-            startPos,
-            cursorLine,
-            startPos + matchLength
-        );
-        var indent = ' '.repeat(prevText.length + 4);
-        edit.replace(editor.document.uri, range, `${prevSpaces}${prevText}${builderClassName}.create(${originalArgs})\n${prevSpaces}${indent}.build()`);
-        await vscode.workspace.applyEdit(edit);
+        if (replaceConstructor) {
+            const range = new vscode.Range(
+                cursorLine,
+                startPos,
+                cursorLine,
+                startPos + matchLength
+            );
+            var indent = ' '.repeat(prevText.length + 4);
+            edit.replace(editor.document.uri, range, `${prevSpaces}${prevText}${builderClassName}.${typeParams.length > 0 ? `<${typeParams.join(', ')}>` : ''}create(${originalArgs})\n${prevSpaces}${indent}.build()`);
+            await vscode.workspace.applyEdit(edit);
+        }
         await createBuilderClassFile(methodInfoList, constructorInfoList, mainClass, targetClassNameOnly);
     } else {
         console.log('Main class not found.');
@@ -330,14 +354,22 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
             extraBuilderMethod += createMethod + '\n' + builderConstructor;
         }
 
-        // Generate Builder methods
-        const builderMethods = methodInfoList
-            .map(info => {
-                const methodName = info.methodName.substring(3); // Remove 'set'
-                const firstChar = methodName.charAt(0).toLowerCase();
-                const builderMethodName = firstChar + methodName.slice(1);
 
+        let constructorTypeParams: string[] = [];
+        let constructorTypeParameter = "";
+        const builderCreateMethods = constructorInfoList
+            .map(info => {
                 const paramPairs = info.dataTypeList.map((type, index) => {
+                    // Collect type parameters from generic types
+                    const typeParamMatch = type.match(/<([^<>]+)>/);
+                    if (typeParamMatch) {
+                        typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
+                            if (!constructorTypeParams.includes(t)) {
+                                constructorTypeParams.push(t);
+                            }
+                        });
+                    }
+
                     if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
                         return index === 0 ? `${type} width` : `${type} height`;
                     }
@@ -352,9 +384,50 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
 
                 const paramList = paramPairs.join(', ');
 
+                constructorTypeParameter = constructorTypeParams.length > 0 ? `<${constructorTypeParams.join(', ')}>` : '';
+                const methodSignature = `    public static ${constructorTypeParameter} ${targetClassName}Builder${constructorTypeParameter} create(${paramList})`;
+                const createMethod = methodSignature + ` { return new ${targetClassName}Builder${constructorTypeParameter}(${paramValues}); }`;
+                const builderConstructor = `    private ${targetClassName}Builder(${paramList}) { in = new ${targetClassName}${constructorTypeParameter}(${paramValues}); }`;
+                return createMethod + `\n\n${builderConstructor}`;
+            })
+            .join('\n\n');
+
+
+        // Generate Builder methods
+        const builderMethods = methodInfoList
+            .map(info => {
+                const methodTypeParams: string[] = [];
+                const paramPairs = info.dataTypeList.map((type, index) => {
+                    // Collect type parameters from generic types
+                    const typeParamMatch = type.match(/<([^<>]+)>/);
+                    if (typeParamMatch) {
+                        typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
+                            if (!methodTypeParams.includes(t)) {
+                                methodTypeParams.push(t);
+                            }
+                        });
+                    }
+
+                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
+                        return index === 0 ? `${type} width` : `${type} height`;
+                    }
+                    return info.dataTypeList.length === 1 ? `${type} value` : `${type} value${index + 1}`;
+                });
+
+                const methodName = info.methodName.substring(3); // Remove 'set'
+                const firstChar = methodName.charAt(0).toLowerCase();
+                const builderMethodName = firstChar + methodName.slice(1);
+
+                const paramValues = paramPairs.map((pair, index) => {
+                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
+                        return index === 0 ? 'width' : 'height';
+                    }
+                    return info.dataTypeList.length === 1 ? 'value' : `value${index + 1}`;
+                }).join(', ');
+
+                const paramList = paramPairs.join(', ');
+
                 // Skip duplicate methods
-                // extraBuilderMethod may have same method
-                // e.g. Scene.fill(Paint fill)
                 const firstParamType = paramList.split(' ')[0];
                 if (methodMap[builderMethodName + firstParamType]) {
                     return;
@@ -370,42 +443,11 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                     }
                 }
                 else {
-                    // Add generic type parameter if <T> is in parameter list
-                    const hasGenericType = paramList.includes('<T>');
-                    const methodSignature = hasGenericType ?
-                        `    public <T extends Event> ${targetClassName}Builder ${builderMethodName}(${paramList})` :
-                        `    public ${targetClassName}Builder ${builderMethodName}(${paramList})`;
-                    return methodSignature + ` { in.${info.methodName}(${paramValues}); return this; }`;
+                    const typeParamsStr = methodTypeParams.length > 0 ? `<${methodTypeParams.join(', ')}>` : '';
+                    return `    public ${typeParamsStr} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');
-
-
-        const builderCreateMethods = constructorInfoList
-            .map(info => {
-                const paramPairs = info.dataTypeList.map((type, index) => {
-                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
-                        return index === 0 ? `${type} width` : `${type} height`;
-                    }
-                    return info.dataTypeList.length === 1 ? `${type} value` : `${type} value${index + 1}`;
-                });
-                const paramValues = paramPairs.map((pair, index) => {
-                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
-                        return index === 0 ? 'width' : 'height';
-                    }
-                    return info.dataTypeList.length === 1 ? 'value' : `value${index + 1}`;
-                }).join(', ');
-
-                const paramList = paramPairs.join(', ');
-
-                // Add generic type parameter if <T> is in parameter list
-                const methodSignature = `    public static ${targetClassName}Builder create(${paramList})`;
-                const createMethod = methodSignature + ` { return new ${targetClassName}Builder(${paramValues}); }`;
-                const builderConstructor = `    private ${targetClassName}Builder(${paramList}) { in = new ${targetClassName}(${paramValues}); }`;
-                return createMethod + `\n\n${builderConstructor}`;
-            })
-            .join('\n\n');
-
 
         let extraImport = "";
         extraImport += `import javafx.scene.media.*;\n`;
@@ -424,8 +466,9 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         // }
         // }
         // }
+        // }
 
-        let buildMethod = `    public ${targetClassName} build() { return in; }`;
+        let buildMethod = `    public ${targetClassName}${constructorTypeParameter} build() { return in; }`;
         if (constructorInfo) {
             let constructorCode = "";
             let firstConstructor = true;
@@ -500,15 +543,20 @@ import javafx.collections.*;
 import javafx.util.*;
 import javafx.stage.*;
 import java.util.*;
+import java.io.*;
 
-public class ${targetClassName}Builder {
-    private ${targetClassName} in;
+import javafx.scene.control.Alert.*;
+import javafx.scene.control.ButtonBar.*;
+
+
+public class ${targetClassName}Builder${constructorTypeParameter} {
+    private ${targetClassName}${constructorTypeParameter} in;
 ${extraBuilderMethod}
 ${builderCreateMethods}
 ${buildMethod}
 
-    public ${targetClassName}Builder apply(java.util.function.Consumer<${targetClassName}> func) {
-        func.accept((${targetClassName}) in);
+    public ${targetClassName}Builder${constructorTypeParameter} apply(java.util.function.Consumer<${targetClassName}${constructorTypeParameter}> func) {
+        func.accept((${targetClassName}${constructorTypeParameter}) in);
         return this;
     }
 
