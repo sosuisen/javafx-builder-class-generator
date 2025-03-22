@@ -1,4 +1,7 @@
 export const extraImportMap: Record<string, string[]> = {
+    "Alert": [
+        "javafx.scene.control.Alert.AlertType",
+    ],
     "AreaChart": [
         "javafx.scene.chart.XYChart.*"
     ],
@@ -7,6 +10,9 @@ export const extraImportMap: Record<string, string[]> = {
     ],
     "BubbleChart": [
         "javafx.scene.chart.XYChart.*"
+    ],
+    "ButtonBar": [
+        "javafx.scene.control.ButtonBar.ButtonData",
     ],
     "ContextMenu": [
         "javafx.stage.PopupWindow.AnchorLocation",
@@ -67,7 +73,8 @@ export const extraImportMap: Record<string, string[]> = {
     "Tooltip": [
         "javafx.stage.PopupWindow.AnchorLocation",
         "com.sun.javafx.stage.*",
-        "com.sun.javafx.tk.*"
+        "com.sun.javafx.tk.*",
+        "javafx.util.Duration",
     ],
     "TreeTableColumn": [
         "javafx.scene.control.TreeTableColumn.*"
@@ -76,7 +83,11 @@ export const extraImportMap: Record<string, string[]> = {
         "javafx.scene.control.TreeTableView.*",
         "javafx.scene.control.TreeTableView.ResizeFeatures",
     ],
+    "TreeView": [
+        "javafx.scene.control.TreeView.*",
+    ],
     "WritableImage": [
-        "java.nio.Buffer"
+        "java.nio.Buffer",
+        "com.sun.javafx.tk.*",
     ],
 };

@@ -46,10 +46,10 @@ export async function generateAllBuilderClasses(document: vscode.TextDocument) {
 
     for (const diagnostic of diagnostics) {
         const range = diagnostic.range;
-        generateBuilderClass(document, range, false, 3000, 1000);
+        await generateBuilderClass(document, range, false, 500, 25);
     }
 
-    // vscode.window.showInformationMessage(`Generated ${diagnostics.length} builder classes.`);
+    vscode.window.showInformationMessage(`Generated ${diagnostics.length} builder classes.`);
 }
 
 export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range, replaceConstructor: boolean = true, diagnosticsInterval = 500, diagnosticsRepeatCount = 25) {
@@ -155,7 +155,7 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
         if (symbols) {
             const classSymbol = symbols.find(symbol =>
                 symbol.kind === vscode.SymbolKind.Class &&
-                symbol.name === currentItem.name
+                (symbol.name === currentItem.name || symbol.name.startsWith(currentItem.name + "<"))
             );
 
             if (classSymbol) {
@@ -471,7 +471,13 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                     }
                 }
                 else {
-                    return `    public ${methodTypeParameterMap[targetClassName] ? (methodTypeParameterMap[targetClassName][info.methodName] || '') : ''} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
+                    let methodTypeParam = methodTypeParameterMap[targetClassName] ? (methodTypeParameterMap[targetClassName][info.methodName] || '') : '';
+                    if (!methodTypeParam) {
+                        if (info.methodName === "setEventHandler") {
+                            methodTypeParam = "<T extends Event>";
+                        }
+                    }
+                    return `    public ${methodTypeParam} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');

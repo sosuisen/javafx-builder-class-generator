@@ -16,6 +16,9 @@ export const typeMap: Record<string, Record<string, string>> = {
     "DatePicker": {
         "T": "LocalDate"
     },
+    "NumberAxis": {
+        "StringConverter<T>": "StringConverter<Number>",
+    },
     "ProgressBarTableCell": {
         "T": "Double",
         "TableColumn<S,T>": "TableColumn<S,Double>",
