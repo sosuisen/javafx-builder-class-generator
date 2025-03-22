@@ -188,7 +188,7 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
                                     methodName,
                                     className: currentItem.name,
                                     dataTypeList,
-                                    returnType
+                                    returnType,
                                 });
                             }
                         }
@@ -365,11 +365,13 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         let constructorTypeParams: string[] = [];
         let constructorTypeParameter = "";
 
+        // Collect type parameters from constructor
+
+        const typeCandidate = ["R", "S", "T", "V", "W", "X", "Y", "Z"];
+        const typeRegex = /<([^<>]+)>/;
         constructorInfoList.forEach(info =>
             info.dataTypeList.forEach((type, index) => {
-                // Collect type parameters from generic types
-                const typeParamMatch = type.match(/<([^<>]+)>/);
-                const typeCandidate = ["R", "S", "T", "V", "W", "X", "Y", "Z"];
+                const typeParamMatch = type.match(typeRegex);
                 if (typeParamMatch) {
                     typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
                         if (!constructorTypeParams.includes(t) && typeCandidate.includes(t)) {
@@ -379,20 +381,40 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                 }
             })
         );
-        constructorTypeParameter = constructorTypeParams.length > 0 ? `<${constructorTypeParams.join(', ')}>` : '';
+        // Collect type parameters from method
+        methodInfoList.forEach(info =>
+            info.dataTypeList.forEach((type, index) => {
+                if (info.methodName === "setEventHandler") {
+                    // ignore setEventHandler(EventType<T> ..)
+                    return;
+                }
+                if (typeMap[targetClassName] && typeMap[targetClassName][type]) {
+                    type = typeMap[targetClassName][type];
+                }
+                if (typeCandidate.includes(type)) {
+                    if (!constructorTypeParams.includes(type)) {
+                        constructorTypeParams.push(type);
+                        return;
+                    }
+                }
+                const typeParamMatch = type.match(typeRegex);
+                if (typeParamMatch) {
+                    typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
+                        if (!constructorTypeParams.includes(t) && typeCandidate.includes(t)) {
+                            constructorTypeParams.push(t);
+                        }
+                    });
+                }
+            })
+        );
+        constructorTypeParameter = constructorTypeParams.length > 0 ? `<${constructorTypeParams.sort().join(', ')}>` : '';
 
         const builderCreateMethods = constructorInfoList
             .map(info => {
                 const paramPairs = info.dataTypeList.map((type, index) => {
-                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
-                        return index === 0 ? `${type} width` : `${type} height`;
-                    }
                     return info.dataTypeList.length === 1 ? `${type} value` : `${type} value${index + 1}`;
                 });
                 const paramValues = paramPairs.map((pair, index) => {
-                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
-                        return index === 0 ? 'width' : 'height';
-                    }
                     return info.dataTypeList.length === 1 ? 'value' : `value${index + 1}`;
                 }).join(', ');
 
@@ -409,20 +431,9 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         // Generate methods in Builder class
         const builderMethods = methodInfoList
             .map(info => {
-                const methodTypeParams: string[] = [];
                 const paramPairs = info.dataTypeList.map((type, index) => {
                     if (typeMap[targetClassName] && typeMap[targetClassName][type]) {
                         type = typeMap[targetClassName][type];
-                    }
-
-                    // Collect type parameters from generic types
-                    const typeParamMatch = type.match(/<([^<>]+)>/);
-                    if (typeParamMatch) {
-                        typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
-                            if (!methodTypeParams.includes(t)) {
-                                methodTypeParams.push(t);
-                            }
-                        });
                     }
 
                     if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
@@ -452,15 +463,15 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
 
                 if (builderMethodName === 'children') {
                     if (info.returnType) {
-                        const genericTypeMatch = info.returnType.match(/ObservableList<(.+?)>/);
+                        const genericTypeMatch = info.returnType.match(/^ObservableList<(.+)>$/);
                         if (genericTypeMatch) {
                             const genericType = genericTypeMatch[1];
-                            return `    public ${targetClassName}Builder children(${genericType}... elements) { in.getChildren().setAll(elements); return this; }`;
+                            return `    public ${targetClassName}Builder${constructorTypeParameter} children(${genericType}... elements) { in.getChildren().setAll(elements); return this; }`;
                         }
                     }
                 }
                 else {
-                    return `    public ${methodTypeParameterMap[targetClassName][info.methodName] || ''} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
+                    return `    public ${methodTypeParameterMap[targetClassName] ? (methodTypeParameterMap[targetClassName][info.methodName] || '') : ''} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');
@@ -563,28 +574,13 @@ import javafx.geometry.*;
 import javafx.collections.*;
 import javafx.util.*;
 import javafx.stage.*;
+import javafx.beans.value.ObservableValue;
+
 import java.util.*;
 import java.io.*;
 import java.time.*;
 import java.time.chrono.*;
 
-import javafx.beans.value.ObservableValue;
-
-import javafx.scene.control.TreeTableView.*;
-import java.util.function.*;
-import javafx.scene.control.TabPane.*;
-import javafx.scene.control.ScrollPane.*;
-import com.sun.javafx.geom.transform.*;
-import javafx.scene.chart.LineChart.*;
-import javafx.stage.PopupWindow.AnchorLocation;
-import com.sun.javafx.stage.*;
-import com.sun.javafx.tk.*;
-
-import javafx.scene.control.Alert.*;
-import javafx.scene.control.ButtonBar.*;
-
-${classesInHierarchy.has("XYChart") ? `import javafx.scene.chart.XYChart.*;` : ''}
-${classesInHierarchy.has("PieChart") ? `import javafx.scene.chart.PieChart.*;` : ''}
 
 public class ${targetClassName}Builder${constructorTypeParameter} {
     private ${targetClassName}${constructorTypeParameter} in;
