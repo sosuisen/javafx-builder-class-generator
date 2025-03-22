@@ -642,7 +642,7 @@ ${builderMethods}
                     if (diagnostic.code === '603979893') { // static method
                         lines[lineNumber] = '';
                     }
-                    if (diagnostic.code === '2684835846') { // import cannot be resolved
+                    if (diagnostic.code === '268435846') { // import cannot be resolved
                         lines[lineNumber] = '';
                     }
                 });
