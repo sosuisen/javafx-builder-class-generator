@@ -366,9 +366,10 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                 const paramPairs = info.dataTypeList.map((type, index) => {
                     // Collect type parameters from generic types
                     const typeParamMatch = type.match(/<([^<>]+)>/);
+                    const typeCandidate = ["R", "S", "T", "X", "Y", "Z"];
                     if (typeParamMatch) {
                         typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
-                            if (!constructorTypeParams.includes(t)) {
+                            if (!constructorTypeParams.includes(t) && typeCandidate.includes(t)) {
                                 constructorTypeParams.push(t);
                             }
                         });
@@ -397,7 +398,7 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
             .join('\n\n');
 
 
-        // Generate Builder methods
+        // Generate methods in Builder class
         const builderMethods = methodInfoList
             .map(info => {
                 const methodTypeParams: string[] = [];
@@ -554,6 +555,7 @@ import java.time.chrono.*;
 
 import javafx.beans.value.ObservableValue;
 
+import javafx.scene.control.TreeTableView.*;
 import java.util.function.*;
 import javafx.scene.control.TabPane.*;
 import javafx.scene.control.ScrollPane.*;
