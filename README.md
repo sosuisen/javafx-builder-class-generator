@@ -15,6 +15,7 @@ If you're eager to write it this way, feel free to do so.
 ## 1. 🏃‍➡️ Move the cursor over a "new ClassName()" expression.
 - The class must be from the `javafx.scene.*` packages.
 - The class name must be a canonical name or resolved through an import.
+- If you are using the modular system, ensure that the required modules are specified in the module-info.java file.
 - Hint dots(...) will appear under the ClassName when you can generate a builder class.
 
 <img src="images/hint.png" width="300">
@@ -86,7 +87,6 @@ In fact, everything can be accomplished with `apply`. The other methods in the b
 - This extension has been confirmed to be compatible with JavaFX 21.
 - The Java files must be located somewhere under the `src` directory, e.g., `src/main/java/com/example/FooController.java`
 - Install the "Language Support for Java(TM) by Red Hat" extension to enable the builder class generator.
-- A module-info.java file is required.
 - A class that extends `javafx.application.Application` is needed.
 
 ## Issues
