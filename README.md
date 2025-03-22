@@ -98,7 +98,7 @@ https://github.com/sosuisen/javafx-builder-class-generator/issues
 
 ## Release Notes
 
-### 1.2.1 
+### 1.2.2
 
 - Supported more classes.
 
