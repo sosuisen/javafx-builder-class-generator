@@ -7,6 +7,9 @@ allowing you to create complex instances more compactly.
 
 <img src="images/builder_04.png" width="400">   
 
+This is simply a bit of syntactic sugar.
+If you're eager to write it this way, feel free to do so.
+
 # How to Use
 
 ## 1. 🏃‍➡️ Move the cursor over a "new ClassName()" expression.
@@ -80,6 +83,7 @@ In fact, everything can be accomplished with `apply`. The other methods in the b
 
 ## Requirements
 
+- This extension has been confirmed to be compatible with JavaFX 21.
 - The Java files must be located somewhere under the `src` directory, e.g., `src/main/java/com/example/FooController.java`
 - Install the "Language Support for Java(TM) by Red Hat" extension to enable the builder class generator.
 - A module-info.java file is required.
@@ -93,6 +97,10 @@ In fact, everything can be accomplished with `apply`. The other methods in the b
 https://github.com/sosuisen/javafx-builder-class-generator/issues
 
 ## Release Notes
+
+### 1.2.1 
+
+- Supported more classes.
 
 ### 1.2.0
 
