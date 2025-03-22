@@ -5,6 +5,7 @@ import { Range, SymbolKind } from "vscode-languageclient";
 import path from 'path';
 import { findMainClass, moduleMaps, extraConstructorMap, extraMethodMap } from '../util';
 import { diagnosticCollection, diagSceneClass } from '../diagnostics/diagSceneClass';
+import { extraImportMap } from '../extraImport';
 
 enum TypeHierarchyDirection {
     children,
@@ -361,20 +362,26 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
 
         let constructorTypeParams: string[] = [];
         let constructorTypeParameter = "";
+
+        constructorInfoList.forEach(info =>
+            info.dataTypeList.forEach((type, index) => {
+                // Collect type parameters from generic types
+                const typeParamMatch = type.match(/<([^<>]+)>/);
+                const typeCandidate = ["R", "S", "T", "V", "W", "X", "Y", "Z"];
+                if (typeParamMatch) {
+                    typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
+                        if (!constructorTypeParams.includes(t) && typeCandidate.includes(t)) {
+                            constructorTypeParams.push(t);
+                        }
+                    });
+                }
+            })
+        );
+        constructorTypeParameter = constructorTypeParams.length > 0 ? `<${constructorTypeParams.join(', ')}>` : '';
+
         const builderCreateMethods = constructorInfoList
             .map(info => {
                 const paramPairs = info.dataTypeList.map((type, index) => {
-                    // Collect type parameters from generic types
-                    const typeParamMatch = type.match(/<([^<>]+)>/);
-                    const typeCandidate = ["R", "S", "T", "X", "Y", "Z"];
-                    if (typeParamMatch) {
-                        typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
-                            if (!constructorTypeParams.includes(t) && typeCandidate.includes(t)) {
-                                constructorTypeParams.push(t);
-                            }
-                        });
-                    }
-
                     if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
                         return index === 0 ? `${type} width` : `${type} height`;
                     }
@@ -389,7 +396,6 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
 
                 const paramList = paramPairs.join(', ');
 
-                constructorTypeParameter = constructorTypeParams.length > 0 ? `<${constructorTypeParams.join(', ')}>` : '';
                 const methodSignature = `    public static ${constructorTypeParameter} ${targetClassName}Builder${constructorTypeParameter} create(${paramList})`;
                 const createMethod = methodSignature + ` { return new ${targetClassName}Builder${constructorTypeParameter}(${paramValues}); }`;
                 const builderConstructor = `    private ${targetClassName}Builder(${paramList}) { in = new ${targetClassName}${constructorTypeParameter}(${paramValues}); }`;
@@ -457,6 +463,10 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         let extraImport = "";
         extraImport += `import javafx.scene.media.*;\n`;
         extraImport += `import javafx.scene.web.*;\n`;
+
+        if (extraImportMap[targetClassName]) {
+            extraImport += extraImportMap[targetClassName].map(cls => "import " + cls + ";").join('\n');
+        }
 
         // NOTICE: module check is not needed because unused import is always removed
         // const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(mainClass.filePath));
