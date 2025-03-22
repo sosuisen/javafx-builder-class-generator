@@ -43,13 +43,13 @@ export async function generateAllBuilderClasses(document: vscode.TextDocument) {
 
     for (const diagnostic of diagnostics) {
         const range = diagnostic.range;
-        await generateBuilderClass(document, range, false);
+        generateBuilderClass(document, range, false, 3000, 1000);
     }
 
-    vscode.window.showInformationMessage(`Generated ${diagnostics.length} builder classes.`);
+    // vscode.window.showInformationMessage(`Generated ${diagnostics.length} builder classes.`);
 }
 
-export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range, replaceConstructor: boolean = true) {
+export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range, replaceConstructor: boolean = true, diagnosticsInterval = 500, diagnosticsRepeatCount = 20) {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor found.');
@@ -100,8 +100,9 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
 
     let lspItem: LSPTypeHierarchyItem;
     const direction = TypeHierarchyDirection.parents;
+
     if (cancelTokenSource) {
-        cancelTokenSource.cancel();
+        //        cancelTokenSource.cancel();
     }
     cancelTokenSource = new vscode.CancellationTokenSource();
     const maxDepth = 100;
@@ -264,7 +265,7 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
             edit.replace(editor.document.uri, range, `${prevSpaces}${prevText}${builderClassName}.${typeParams.length > 0 ? `<${typeParams.join(', ')}>` : ''}create(${originalArgs})\n${prevSpaces}${indent}.build()`);
             await vscode.workspace.applyEdit(edit);
         }
-        await createBuilderClassFile(methodInfoList, constructorInfoList, mainClass, targetClassNameOnly, classesInHierarchy);
+        await createBuilderClassFile(methodInfoList, constructorInfoList, mainClass, targetClassNameOnly, classesInHierarchy, diagnosticsRepeatCount, diagnosticsInterval);
     } else {
         console.log('Main class not found.');
     }
@@ -306,7 +307,7 @@ function processGenericTypes(text: string): string[] {
     return result;
 }
 
-async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorInfoList: MethodInfo[], mainClass: { packageName: string, filePath: string }, targetClassName: string, classesInHierarchy: Set<string>) {
+async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorInfoList: MethodInfo[], mainClass: { packageName: string, filePath: string }, targetClassName: string, classesInHierarchy: Set<string>, diagnosticsRepeatCount: number, diagnosticsInterval: number) {
     const mainClassPath = mainClass.filePath;
     const mainClassDir = mainClassPath.substring(0, mainClassPath.lastIndexOf(path.sep));
 
@@ -472,6 +473,7 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         // }
 
         let buildMethod = `    public ${targetClassName}${constructorTypeParameter} build() { return in; }`;
+        // Replace constructor with extra constructor
         if (constructorInfo) {
             let constructorCode = "";
             let firstConstructor = true;
@@ -547,6 +549,19 @@ import javafx.util.*;
 import javafx.stage.*;
 import java.util.*;
 import java.io.*;
+import java.time.*;
+import java.time.chrono.*;
+
+import javafx.beans.value.ObservableValue;
+
+import java.util.function.*;
+import javafx.scene.control.TabPane.*;
+import javafx.scene.control.ScrollPane.*;
+import com.sun.javafx.geom.transform.*;
+import javafx.scene.chart.LineChart.*;
+import javafx.stage.PopupWindow.AnchorLocation;
+import com.sun.javafx.stage.*;
+import com.sun.javafx.tk.*;
 
 import javafx.scene.control.Alert.*;
 import javafx.scene.control.ButtonBar.*;
@@ -578,9 +593,9 @@ ${builderMethods}
         fs.writeFileSync(builderFilePath, builderCode);
         console.log(`Builder class created: ${builderFilePath}`);
 
-        // Run diagnostics every 0.5 seconds for 20 times
-        for (let i = 0; i < 20; i++) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+        // Run diagnostics every 0.5 seconds
+        for (let i = 0; i < diagnosticsRepeatCount; i++) {
+            await new Promise(resolve => setTimeout(resolve, diagnosticsInterval));
             const diagnostics = vscode.languages.getDiagnostics(vscode.Uri.file(builderFilePath));
             if (diagnostics.length > 0) {
                 // Comment out lines with diagnostics
