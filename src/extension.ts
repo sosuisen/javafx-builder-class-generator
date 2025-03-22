@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { generateBuilderClass, generateAllBuilderClasses } from './command/generateBuilderClass';
-import { checkModule, deleteModule, extraConstructorMap, extraMethodMap } from './util';
+import { checkModule, deleteModule, extraConstructorMap } from './util';
 import { BuilderClassCodeActionProvider } from './codeactions/builderClass';
 import { diagSceneClass } from './diagnostics/diagSceneClass';
 
@@ -19,22 +19,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		return;
 	}
 
-	const methodTxtResourceUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'method.txt');
-	try {
-		const methodData = await vscode.workspace.fs.readFile(methodTxtResourceUri);
-		const methodContent = new TextDecoder().decode(methodData);
-		methodContent.split('\n').forEach(line => {
-			if (line.includes(',')) {
-				let [methodName, ...typeParam] = line.split(',');
-				methodName = methodName.trim();
-				if (methodName) {
-					extraMethodMap[methodName] = typeParam.join(',').trim();
-				}
-			}
-		});
-	} catch (error) {
-		console.error('Error reading method.txt:', error);
-	}
 	const constructorTxtResourceUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'constructor.txt');
 	try {
 		const data = await vscode.workspace.fs.readFile(constructorTxtResourceUri);

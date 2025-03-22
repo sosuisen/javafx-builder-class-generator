@@ -3,10 +3,11 @@ import * as fs from 'fs';
 import { TextDocumentIdentifier, Position, TextDocumentPositionParams } from 'vscode-languageclient';
 import { Range, SymbolKind } from "vscode-languageclient";
 import path from 'path';
-import { findMainClass, moduleMaps, extraConstructorMap, extraMethodMap } from '../util';
+import { findMainClass, moduleMaps, extraConstructorMap } from '../util';
 import { diagnosticCollection, diagSceneClass } from '../diagnostics/diagSceneClass';
 import { extraImportMap } from '../maps/extraImportMap';
 import { typeMap } from '../maps/typeMap';
+import { methodTypeParameterMap } from '../maps/methodTypeParameterMap';
 
 enum TypeHierarchyDirection {
     children,
@@ -459,8 +460,7 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                     }
                 }
                 else {
-                    // const typeParamsStr = methodTypeParams.length > 0 ? `<${methodTypeParams.join(', ')}>` : '';
-                    return `    public ${extraMethodMap[info.methodName] || ''} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
+                    return `    public ${methodTypeParameterMap[targetClassName][info.methodName] || ''} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');
@@ -611,6 +611,7 @@ ${builderMethods}
         console.log(`Builder class created: ${builderFilePath}`);
 
         // Run diagnostics every 0.5 seconds
+
         for (let i = 0; i < diagnosticsRepeatCount; i++) {
             await new Promise(resolve => setTimeout(resolve, diagnosticsInterval));
             const diagnostics = vscode.languages.getDiagnostics(vscode.Uri.file(builderFilePath));
