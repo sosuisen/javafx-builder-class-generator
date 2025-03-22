@@ -5,7 +5,8 @@ import { Range, SymbolKind } from "vscode-languageclient";
 import path from 'path';
 import { findMainClass, moduleMaps, extraConstructorMap, extraMethodMap } from '../util';
 import { diagnosticCollection, diagSceneClass } from '../diagnostics/diagSceneClass';
-import { extraImportMap } from '../extraImport';
+import { extraImportMap } from '../maps/extraImportMap';
+import { typeMap } from '../maps/typeMap';
 
 enum TypeHierarchyDirection {
     children,
@@ -50,7 +51,7 @@ export async function generateAllBuilderClasses(document: vscode.TextDocument) {
     // vscode.window.showInformationMessage(`Generated ${diagnostics.length} builder classes.`);
 }
 
-export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range, replaceConstructor: boolean = true, diagnosticsInterval = 500, diagnosticsRepeatCount = 20) {
+export async function generateBuilderClass(document: vscode.TextDocument, range: vscode.Range, replaceConstructor: boolean = true, diagnosticsInterval = 500, diagnosticsRepeatCount = 25) {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor found.');
@@ -409,6 +410,10 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
             .map(info => {
                 const methodTypeParams: string[] = [];
                 const paramPairs = info.dataTypeList.map((type, index) => {
+                    if (typeMap[targetClassName] && typeMap[targetClassName][type]) {
+                        type = typeMap[targetClassName][type];
+                    }
+
                     // Collect type parameters from generic types
                     const typeParamMatch = type.match(/<([^<>]+)>/);
                     if (typeParamMatch) {
