@@ -80,6 +80,16 @@ public LabelBuilder apply(java.util.function.Consumer<Label> func) {
 
 In fact, everything can be accomplished with `apply`. The other methods in the builder class simply provide syntactic sugar for the original class's `set-` methods and the `getChildren` method.
 
+## `styleClass` method
+
+Shortcut for `getStyleClass().add(String styleClassName)`.
+
+```java
+var completedCheckBox = CheckBoxBuilder.create()
+            .styleClass("todo-completed")
+            .build();
+```
+
 # Miscellaneous
 
 ## Requirements
@@ -98,9 +108,9 @@ https://github.com/sosuisen/javafx-builder-class-generator/issues
 
 ## Release Notes
 
-### 1.2.2
+### 1.3.5
 
-- Supported more classes.
+- Add `styleClass` method.
 
 ### 1.2.0
 
