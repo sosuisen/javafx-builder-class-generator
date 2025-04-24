@@ -479,7 +479,10 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                             methodTypeParam = "<T extends Event>";
                         }
                     }
-                    return `    public ${methodTypeParam} ${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
+                    if (!methodTypeParam && methodTypeParam !== '') {
+                        methodTypeParam += ' ';
+                    }
+                    return `    public ${methodTypeParam}${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');
