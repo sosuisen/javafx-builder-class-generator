@@ -1,8 +1,8 @@
 // List in order of priority matching
 Scene: Parent root, double width, double height, boolean depthBuffer, SceneAntialiasing antiAliasing
 Scene: Parent root, double width, double height, boolean depthBuffer
-Scene: Parent root, double width, double height
 Scene: Parent root, double width, double height, Paint fill
+Scene: Parent root, double width, double height
 Scene: Parent root, Paint fill
 Scene: Parent root
 
