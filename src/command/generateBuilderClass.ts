@@ -163,8 +163,7 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
                 classSymbol.children
                     .filter(symbol =>
                         symbol.kind === vscode.SymbolKind.Method &&
-                        (symbol.name.startsWith('set') || symbol.name.startsWith('getChildren'))
-                    )
+                        (symbol.name.startsWith('set') || symbol.name.startsWith('getChildren') || symbol.name.startsWith('getStyleClass')))
                     .forEach(symbol => {
                         const returnType = symbol.detail.replace(/ : /g, '').trim();
                         // Separate method name and parameters
@@ -469,6 +468,9 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                             return `    public ${targetClassName}Builder${constructorTypeParameter} children(${genericType}... elements) { in.getChildren().setAll(elements); return this; }`;
                         }
                     }
+                }
+                else if (builderMethodName === 'styleClass') {
+                    return `    public ${targetClassName}Builder${constructorTypeParameter} styleClass(String styleClassName) { in.getStyleClass().add(styleClassName); return this; }`;
                 }
                 else {
                     let methodTypeParam = methodTypeParameterMap[targetClassName] ? (methodTypeParameterMap[targetClassName][info.methodName] || '') : '';
