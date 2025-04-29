@@ -460,17 +460,19 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                     return;
                 }
 
+                const createInstanceIfNotExists = constructorInfo ? "if (in == null) build(); " : "";
+
                 if (builderMethodName === 'children') {
                     if (info.returnType) {
                         const genericTypeMatch = info.returnType.match(/^ObservableList<(.+)>$/);
                         if (genericTypeMatch) {
                             const genericType = genericTypeMatch[1];
-                            return `    public ${targetClassName}Builder${constructorTypeParameter} children(${genericType}... elements) { in.getChildren().setAll(elements); return this; }`;
+                            return `    public ${targetClassName}Builder${constructorTypeParameter} children(${genericType}... elements) { ${createInstanceIfNotExists}in.getChildren().setAll(elements); return this; }`;
                         }
                     }
                 }
                 else if (builderMethodName === 'styleClass') {
-                    return `    public ${targetClassName}Builder${constructorTypeParameter} styleClass(String styleClassName) { in.getStyleClass().add(styleClassName); return this; }`;
+                    return `    public ${targetClassName}Builder${constructorTypeParameter} styleClass(String styleClassName) { ${createInstanceIfNotExists}in.getStyleClass().add(styleClassName); return this; }`;
                 }
                 else {
                     let methodTypeParam = methodTypeParameterMap[targetClassName] ? (methodTypeParameterMap[targetClassName][info.methodName] || '') : '';
@@ -482,7 +484,7 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                     if (!methodTypeParam && methodTypeParam !== '') {
                         methodTypeParam += ' ';
                     }
-                    return `    public ${methodTypeParam}${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { in.${info.methodName}(${paramValues}); return this; }`;
+                    return `    public ${methodTypeParam}${targetClassName}Builder${constructorTypeParameter} ${builderMethodName}(${paramList}) { ${createInstanceIfNotExists}in.${info.methodName}(${paramValues}); return this; }`;
                 }
             })
             .join('\n\n');
@@ -600,7 +602,7 @@ ${builderCreateMethods}
 ${buildMethod}
 
     public ${targetClassName}Builder${constructorTypeParameter} apply(java.util.function.Consumer<${targetClassName}${constructorTypeParameter}> func) {
-        func.accept((${targetClassName}${constructorTypeParameter}) in);
+        ${constructorInfo ? "if (in == null) build();\n" : ""}func.accept((${targetClassName}${constructorTypeParameter}) in);
         return this;
     }
 
