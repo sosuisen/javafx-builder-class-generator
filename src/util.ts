@@ -32,8 +32,6 @@ export async function findMainClass(uri: vscode.Uri): Promise<{ packageName: str
     return null;
 }
 
-export const extraConstructorMap: { [key: string]: { [key: string]: { type: string, param: string }[] } } = {};
-
 export const moduleMaps: { [key: string]: string[] } = {};
 export function checkModule(document: vscode.TextDocument) {
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);

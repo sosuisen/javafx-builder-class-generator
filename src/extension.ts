@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { generateBuilderClass, generateAllBuilderClasses } from './command/generateBuilderClass';
-import { checkModule, deleteModule, extraConstructorMap } from './util';
+import { deleteModule } from './util';
 import { BuilderClassCodeActionProvider } from './codeactions/builderClass';
 import { diagSceneClass } from './diagnostics/diagSceneClass';
 
@@ -17,40 +17,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (!workspaceFolders) {
 		console.error('No workspace folder is open.');
 		return;
-	}
-
-	const constructorTxtResourceUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'constructor.txt');
-	try {
-		const data = await vscode.workspace.fs.readFile(constructorTxtResourceUri);
-		const content = new TextDecoder().decode(data);
-		content.split('\n').forEach(line => {
-			if (line.includes(':')) {
-				let [className, args] = line.split(':');
-				className = className.trim();
-				if (className) {
-					args = args.trim();
-					args.split(',').forEach(arg => {
-						arg = arg.trim();
-						let [type, param] = arg.split(' ');
-						type = type.trim();
-						param = param.trim();
-						if (type && param) {
-							if (!extraConstructorMap[className]) {
-								extraConstructorMap[className] = {};
-							}
-							if (!extraConstructorMap[className][args]) {
-								extraConstructorMap[className][args] = [{ type, param }];
-							}
-							else {
-								extraConstructorMap[className][args].push({ type, param });
-							}
-						}
-					});
-				}
-			}
-		});
-	} catch (error) {
-		console.error('Error reading constructor.txt:', error);
 	}
 
 	async function checkAllJavaFiles() {

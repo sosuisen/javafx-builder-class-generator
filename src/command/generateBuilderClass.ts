@@ -1,13 +1,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { TextDocumentIdentifier, Position, TextDocumentPositionParams } from 'vscode-languageclient';
+import { TextDocumentIdentifier, TextDocumentPositionParams } from 'vscode-languageclient';
 import { Range, SymbolKind } from "vscode-languageclient";
 import path from 'path';
-import { findMainClass, moduleMaps, extraConstructorMap } from '../util';
-import { diagnosticCollection, diagSceneClass } from '../diagnostics/diagSceneClass';
+import { findMainClass } from '../util';
+import { diagnosticCollection } from '../diagnostics/diagSceneClass';
 import { extraImportMap } from '../maps/extraImportMap';
 import { typeMap } from '../maps/typeMap';
 import { methodTypeParameterMap } from '../maps/methodTypeParameterMap';
+import { extraConstructorMap } from '../maps/extraConstructorMap';
 
 enum TypeHierarchyDirection {
     children,
@@ -31,7 +32,7 @@ class LSPTypeHierarchyItem {
 interface MethodInfo {
     methodName: string;
     className: string;
-    dataTypeList: string[];
+    paramList: { "type": string; "param": string; }[];
     returnType?: string;
 }
 
@@ -183,38 +184,66 @@ export async function generateBuilderClass(document: vscode.TextDocument, range:
                                     return;
                                 }
 
+                                const paramList = dataTypeList.map((type, index) => {
+                                    var param = 'value';
+                                    if (methodName === 'setMaxSize' || methodName === 'setMinSize' || methodName === 'setPrefSize') {
+                                        param = index === 0 ? `width` : `height`;
+                                    }
+                                    else if(dataTypeList.length > 1) {
+                                        param = `value${index + 1}`;
+                                    }
+                                    return { type, param };
+                                });
+
                                 methodMap.set(key, {
                                     methodName,
                                     className: currentItem.name,
-                                    dataTypeList,
+                                    paramList,
                                     returnType,
                                 });
                             }
                         }
                     });
 
-                classSymbol.children.filter(symbol =>
-                    symbol.kind === vscode.SymbolKind.Constructor
-                    && symbol.name.startsWith(targetClassNameOnly + "(")
-                )
-                    .forEach(symbol => {
-                        // Separate method name and parameters
-                        const constructorMatch = symbol.name.match(/^(\w+?)\((.*)\)/);
-                        if (constructorMatch) {
-                            const [, methodName, params] = constructorMatch;
-                            const dataTypeList = processGenericTypes(params);
-                            const key = symbol.name;
+                if (extraConstructorMap[currentItem.name]) {
+                    const extraConstructorInfo = extraConstructorMap[currentItem.name].constructors;
+                    for (const paramList of Object.values(extraConstructorInfo)) {
+                        const key = currentItem.name + "(" + paramList.map(p => p.type).join(",") + ")";
+                        constructorMap.set(key, {
+                            methodName: currentItem.name,
+                            className: currentItem.name,
+                            paramList,
+                        });
+                    }
+                }
+                else {
+                    classSymbol.children.filter(symbol =>
+                        symbol.kind === vscode.SymbolKind.Constructor
+                        && symbol.name.startsWith(targetClassNameOnly + "(")
+                    )
+                        .forEach(symbol => {
+                            // Separate method name and parameters
+                            const constructorMatch = symbol.name.match(/^(\w+?)\((.*)\)/);
+                            if (constructorMatch) {
+                                const [, methodName, params] = constructorMatch;
+                                const dataTypeList = processGenericTypes(params);
+                                const key = symbol.name;
 
-                            // Add only methods that haven't been registered yet (ignore parent class methods)
-                            if (!constructorMap.has(key)) {
-                                constructorMap.set(key, {
-                                    methodName,
-                                    className: currentItem.name,
-                                    dataTypeList,
+                                const paramList = dataTypeList.map((type, index) => {
+                                    return { type, param: dataTypeList.length === 1 ? 'value' : `value${index + 1}` };
                                 });
+
+                                // Add only methods that haven't been registered yet (ignore parent class methods)
+                                if (!constructorMap.has(key)) {
+                                    constructorMap.set(key, {
+                                        methodName,
+                                        className: currentItem.name,
+                                        paramList,
+                                    });
+                                }
                             }
-                        }
-                    });
+                        });
+                }
             }
         }
 
@@ -315,10 +344,9 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
 
     // Create jfxbuilder folder path
     const builderDirPath = `${mainClassDir}/jfxbuilder`;
-    const builderFilePath = `${builderDirPath}/${targetClassName}Builder.java`;
 
     try {
-        const constructorInfo = extraConstructorMap[targetClassName];
+        const extraConstructorInfo = extraConstructorMap[targetClassName]?.constructors;
         let extraBuilderMethod = "";
         const fieldMap: { [key: string]: boolean } = {};
         const methodMap: { [key: string]: boolean } = {};
@@ -334,8 +362,8 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
             char: "\\u0000"
         };
 
-        if (constructorInfo) {
-            for (const infoArray of Object.values(constructorInfo)) {
+        if (extraConstructorInfo) {
+            for (const infoArray of Object.values(extraConstructorInfo)) {
                 for (const info of infoArray) {
                     if (!fieldMap[info.type + info.param]) {
                         fieldMap[info.type + info.param] = true;
@@ -369,8 +397,8 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         const typeCandidate = ["R", "S", "T", "V", "W", "X", "Y", "Z"];
         const typeRegex = /<([^<>]+)>/;
         constructorInfoList.forEach(info =>
-            info.dataTypeList.forEach((type, index) => {
-                const typeParamMatch = type.match(typeRegex);
+            info.paramList.forEach((param, index) => {
+                const typeParamMatch = param.type.match(typeRegex);
                 if (typeParamMatch) {
                     typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
                         if (!constructorTypeParams.includes(t) && typeCandidate.includes(t)) {
@@ -382,21 +410,21 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         );
         // Collect type parameters from method
         methodInfoList.forEach(info =>
-            info.dataTypeList.forEach((type, index) => {
+            info.paramList.forEach((param, index) => {
                 if (info.methodName === "setEventHandler") {
                     // ignore setEventHandler(EventType<T> ..)
                     return;
                 }
-                if (typeMap[targetClassName] && typeMap[targetClassName][type]) {
-                    type = typeMap[targetClassName][type];
+                if (typeMap[targetClassName] && typeMap[targetClassName][param.type]) {
+                    param.type = typeMap[targetClassName][param.type];
                 }
-                if (typeCandidate.includes(type)) {
-                    if (!constructorTypeParams.includes(type)) {
-                        constructorTypeParams.push(type);
+                if (typeCandidate.includes(param.type)) {
+                    if (!constructorTypeParams.includes(param.type)) {
+                        constructorTypeParams.push(param.type);
                         return;
                     }
                 }
-                const typeParamMatch = type.match(typeRegex);
+                const typeParamMatch = param.type.match(typeRegex);
                 if (typeParamMatch) {
                     typeParamMatch[1].split(',').map(t => t.trim()).forEach(t => {
                         if (!constructorTypeParams.includes(t) && typeCandidate.includes(t)) {
@@ -410,18 +438,19 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
 
         const builderCreateMethods = constructorInfoList
             .map(info => {
-                const paramPairs = info.dataTypeList.map((type, index) => {
-                    return info.dataTypeList.length === 1 ? `${type} value` : `${type} value${index + 1}`;
-                });
-                const paramValues = paramPairs.map((pair, index) => {
-                    return info.dataTypeList.length === 1 ? 'value' : `value${index + 1}`;
+                const paramValuesStr = info.paramList.map((param, index) => {
+                    return param.param;
                 }).join(', ');
+
+                const paramPairs = info.paramList.map((param, index) => {
+                    return `${param.type} ${param.param}`;
+                });
 
                 const paramList = paramPairs.join(', ');
 
                 const methodSignature = `    public static ${constructorTypeParameter} ${targetClassName}Builder${constructorTypeParameter} create(${paramList})`;
-                const createMethod = methodSignature + ` { return new ${targetClassName}Builder${constructorTypeParameter}(${paramValues}); }`;
-                const builderConstructor = `    private ${targetClassName}Builder(${paramList}) { in = new ${targetClassName}${constructorTypeParameter}(${paramValues}); }`;
+                const createMethod = methodSignature + ` { return new ${targetClassName}Builder${constructorTypeParameter}(${paramValuesStr}); }`;
+                const builderConstructor = `    private ${targetClassName}Builder(${paramList}) { in = new ${targetClassName}${constructorTypeParameter}(${paramValuesStr}); }`;
                 return createMethod + `\n\n${builderConstructor}`;
             })
             .join('\n\n');
@@ -430,26 +459,16 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
         // Generate methods in Builder class
         const builderMethods = methodInfoList
             .map(info => {
-                const paramPairs = info.dataTypeList.map((type, index) => {
-                    if (typeMap[targetClassName] && typeMap[targetClassName][type]) {
-                        type = typeMap[targetClassName][type];
-                    }
-
-                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
-                        return index === 0 ? `${type} width` : `${type} height`;
-                    }
-                    return info.dataTypeList.length === 1 ? `${type} value` : `${type} value${index + 1}`;
+                const paramPairs = info.paramList.map((param, index) => {
+                    return `${param.type} ${param.param}`;
                 });
 
                 const methodName = info.methodName.substring(3); // Remove 'set'
                 const firstChar = methodName.charAt(0).toLowerCase();
                 const builderMethodName = firstChar + methodName.slice(1);
 
-                const paramValues = paramPairs.map((pair, index) => {
-                    if (info.methodName === 'setMaxSize' || info.methodName === 'setMinSize' || info.methodName === 'setPrefSize') {
-                        return index === 0 ? 'width' : 'height';
-                    }
-                    return info.dataTypeList.length === 1 ? 'value' : `value${index + 1}`;
+                const paramValues = info.paramList.map((param, index) => {
+                    return param.param;
                 }).join(', ');
 
                 const paramList = paramPairs.join(', ');
@@ -460,7 +479,7 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
                     return;
                 }
 
-                const createInstanceIfNotExists = constructorInfo ? "if (in == null) build(); " : "";
+                const createInstanceIfNotExists = extraConstructorInfo ? "if (in == null) build(); " : "";
 
                 if (builderMethodName === 'children') {
                     if (info.returnType) {
@@ -514,10 +533,10 @@ async function createBuilderClassFile(methodInfoList: MethodInfo[], constructorI
 
         let buildMethod = `    public ${targetClassName}${constructorTypeParameter} build() { return in; }`;
         // Replace constructor with extra constructor
-        if (constructorInfo) {
+        if (extraConstructorInfo) {
             let constructorCode = "";
             let firstConstructor = true;
-            for (const infoArray of Object.values(constructorInfo)) {
+            for (const infoArray of Object.values(extraConstructorInfo)) {
                 let constructorCondition = "";
                 let constructorParams = "";
                 for (let i = 0; i < infoArray.length; i++) {
@@ -602,7 +621,7 @@ ${builderCreateMethods}
 ${buildMethod}
 
     public ${targetClassName}Builder${constructorTypeParameter} apply(java.util.function.Consumer<${targetClassName}${constructorTypeParameter}> func) {
-        ${constructorInfo ? "if (in == null) build();\n" : ""}func.accept((${targetClassName}${constructorTypeParameter}) in);
+        ${extraConstructorInfo ? "if (in == null) build();\n" : ""}func.accept((${targetClassName}${constructorTypeParameter}) in);
         return this;
     }
 
@@ -614,6 +633,7 @@ ${builderMethods}
         if (!fs.existsSync(builderDirPath)) {
             fs.mkdirSync(builderDirPath);
         }
+        const builderFilePath = `${builderDirPath}/${targetClassName}Builder.java`;
 
         // Create file
         fs.writeFileSync(builderFilePath, builderCode);
@@ -666,4 +686,4 @@ ${builderMethods}
     } catch (error) {
         console.error('Failed to create Builder class:', error);
     }
-} 
+}
