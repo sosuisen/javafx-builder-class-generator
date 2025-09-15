@@ -1,5 +1,9 @@
 # JavaFX Builder Class Generator
 
+❗Notice: The development of this extension has been discontinued. Please consider using its successor at https://github.com/sosuisen/javafx-builder-api.
+
+---
+
 This VSCode extension provides a code generator for creating builder classes in JavaFX projects.
 
 You can generate builder classes for various types included in the `javafx.scene.*` packages, such as `Button` and `VBox`,
